@@ -1,0 +1,75 @@
+---
+title: "🌸 Florida 2022 County Election Results 🌸"
+format: html
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## 🌺 Florida 2022 Gubernatorial Election Map 🌷
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(tigris)
+library(sf)
+library(leaflet)
+
+options(tigris_use_cache = TRUE)
+```
+
+```{r}
+#| label: load-data
+# Load county election data
+county_data <- read_csv("data/20221108__fl__general__county.csv")
+
+# Filter for the Governor race and calculate Republican vote percentage
+gov_results <- county_data |>
+  filter(office == "Governor", party %in% c("DEM", "REP")) |>
+  group_by(county) |>
+  summarize(
+    rep_votes = sum(votes[party == "REP"]),
+    total_votes = sum(votes),
+    rep_pct = (rep_votes / total_votes) * 100
+  ) |>
+  mutate(county = if_else(county == "Desoto", "DeSoto", county))
+```
+
+```{r}
+#| label: map
+# Get Florida county boundaries and transform for leaflet
+fl_map <- counties(state = "FL", cb = TRUE) |>
+  left_join(gov_results, by = c("NAME" = "county")) |>
+  st_transform(crs = 4326)
+
+# Pink flower theme palette
+pal <- colorNumeric(
+  palette = c("#fff0f5", "#fbb4b9", "#f768a1", "#c51b8a", "#7a0177"),
+  domain = c(0, 100)
+)
+
+# Render interactive leaflet map with pink styling and flower accents
+leaflet(fl_map) |>
+  addProviderTiles("CartoDB.Positron") |>
+  addPolygons(
+    fillColor = ~pal(rep_pct),
+    weight = 1.5,
+    opacity = 1,
+    color = "#ffc0cb",
+    fillOpacity = 0.75,
+    highlightOptions = highlightOptions(
+      weight = 3,
+      color = "#ff1493",
+      bringToFront = TRUE
+    ),
+    label = ~paste0("🌸 ", NAME, " County: ", round(rep_pct, 1), "% REP 🌺")
+  ) |>
+  addLegend(
+    pal = pal,
+    values = ~rep_pct,
+    opacity = 0.8,
+    title = "🌸 REP Vote % 🌸",
+    position = "bottomright"
+  )
+```
